@@ -305,8 +305,7 @@
 </div>
 
 <script>
-  const BASE_URL = location.hostname ==="localhost" ? "http://localhost:3001" : "https://rentro-backend.onrender.com"; // Change if running locally
-
+  // Email display and storage
   const emailDisplay = document.getElementById("user-email");
   const storedEmail = localStorage.getItem("userEmail");
   if (storedEmail) emailDisplay.textContent = storedEmail;
@@ -317,15 +316,7 @@
     return Array.from(inputs).map(input => input.value).join('');
   }
 
-  function clearOTPInputs() {
-    inputs.forEach(input => input.value = "");
-    inputs[0].focus();
-  }
-
-  window.onload = () => {
-    if (inputs.length > 0) inputs[0].focus();
-  };
-
+  // OTP input navigation
   inputs.forEach((input, index) => {
     input.addEventListener("input", () => {
       input.value = input.value.replace(/\D/, '');
@@ -341,22 +332,24 @@
       if (e.key === "Backspace" && input.value === "" && index > 0) {
         inputs[index - 1].focus();
       }
-      if (e.key === "Enter" && index === inputs.length - 1) {
-        verifyOTP();
-      }
     });
   });
 
+  // Edit email section
   const editBtn = document.getElementById("edit-btn");
   const emailInput = document.getElementById("email-input");
   const editSection = document.getElementById("edit-section");
 
   editBtn.addEventListener("click", () => {
     const expanded = editBtn.getAttribute("aria-expanded") === "true";
-    editSection.style.display = expanded ? "none" : "flex";
-    editSection.setAttribute("aria-hidden", expanded ? "true" : "false");
-    editBtn.setAttribute("aria-expanded", !expanded);
-    if (!expanded) {
+    if (expanded) {
+      editSection.style.display = "none";
+      editSection.setAttribute("aria-hidden", "true");
+      editBtn.setAttribute("aria-expanded", "false");
+    } else {
+      editSection.style.display = "flex";
+      editSection.setAttribute("aria-hidden", "false");
+      editBtn.setAttribute("aria-expanded", "true");
       emailInput.value = localStorage.getItem("userEmail") || "";
       emailInput.focus();
     }
@@ -373,50 +366,31 @@
     editSection.style.display = "none";
     editSection.setAttribute("aria-hidden", "true");
     editBtn.setAttribute("aria-expanded", "false");
-    sendOTP();
+    sendOTP(); // Send OTP whenever email is updated
   }
 
+  // Show/hide error message
   function showError(msg) {
     const errorMsg = document.getElementById("error-msg");
     errorMsg.textContent = msg;
     errorMsg.style.display = "block";
   }
-
   function hideError() {
     document.getElementById("error-msg").style.display = "none";
   }
 
-  function startResendCountdown(duration = 30) {
-    const resendBtn = document.getElementById("resend-btn");
-    resendBtn.disabled = true;
-    let timeLeft = duration;
-
-    resendBtn.textContent = `RESEND IN ${timeLeft}s`;
-    const timer = setInterval(() => {
-      timeLeft--;
-      resendBtn.textContent = `RESEND IN ${timeLeft}s`;
-
-      if (timeLeft <= 0) {
-        clearInterval(timer);
-        resendBtn.disabled = false;
-        resendBtn.textContent = "RESEND";
-      }
-    }, 5000);
-  }
-
+  // Send OTP to backend
   async function sendOTP() {
     const email = localStorage.getItem("userEmail");
     if (!email) {
       showError("No email provided.");
       return;
     }
-
     const resendBtn = document.getElementById("resend-btn");
     resendBtn.disabled = true;
     resendBtn.textContent = "Sending...";
-
     try {
-      const res = await fetch(`${BASE_URL}/send-otp`, {
+      const res = await fetch('http://localhost:3001/send-otp', {
         method: 'POST',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email })
@@ -424,60 +398,47 @@
       const data = await res.json();
       if (data.success) {
         hideError();
-        startResendCountdown();
       } else {
         showError(data.error || "Could not send OTP.");
-        resendBtn.disabled = false;
-        resendBtn.textContent = "RESEND";
       }
     } catch {
       showError("Network error.");
+    }
+    setTimeout(() => {
       resendBtn.disabled = false;
       resendBtn.textContent = "RESEND";
-    }
+    }, 30000);
   }
-
   document.getElementById("resend-btn").addEventListener("click", sendOTP);
 
-  async function verifyOTP() {
+  // Auto send OTP on page load if email exists
+  if (storedEmail) sendOTP();
+
+  // Verify OTP with backend
+  document.getElementById("verify-btn").addEventListener("click", async () => {
     const otp = getOTP();
     const email = localStorage.getItem("userEmail");
-
     if (otp.length !== 6) {
       showError("Please enter a 6-digit OTP.");
       return;
     }
-
-    document.getElementById("verify-btn").disabled = true;
-    document.getElementById("loading-indicator").style.display = "inline";
-
     try {
-      const res = await fetch(`${BASE_URL}/verify-otp`, {
+      const res = await fetch('http://localhost:3001/verify-otp', {
         method: 'POST',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp })
       });
       const data = await res.json();
-
       if (data.success) {
         window.location.href = "city.html";
       } else {
         showError(data.error || "Invalid OTP. Please try again.");
-        clearOTPInputs();
       }
     } catch {
       showError("Network error.");
     }
-
-    document.getElementById("loading-indicator").style.display = "none";
-    document.getElementById("verify-btn").disabled = false;
-  }
-
-  document.getElementById("verify-btn").addEventListener("click", verifyOTP);
-
-  if (storedEmail) sendOTP();
+  });
 </script>
 
-
 </body>
-</html>
+</html>       
